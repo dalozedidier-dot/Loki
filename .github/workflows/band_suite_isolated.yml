@@ -33,30 +33,18 @@ jobs:
           pip install -r dd_coherence_tool/requirements.txt
           pip install pytest
 
-      - name: Run band suite (repo-defined)
+      - name: Run band suite entrypoint (with logs)
         run: |
           set -euo pipefail
-          attempt=1
-          max=2
-          while [ $attempt -le $max ]; do
-            echo "band_suite attempt $attempt/$max"
-            set +e
-            python scripts/ci_band_suite.py
-            rc=$?
-            set -e
-            if [ $rc -eq 0 ]; then
-              echo "band_suite OK"
-              break
-            fi
-            echo "band_suite failed (rc=$rc)"
-            attempt=$((attempt+1))
-            if [ $attempt -le $max ]; then
-              echo "Retry in 10s"
-              sleep 10
-            else
-              exit 1
-            fi
-          done
+          python scripts/ci_band_suite.py
+
+      - name: List _ci_out (debug)
+        if: always()
+        run: |
+          echo "Files in _ci_out:"
+          find _ci_out -maxdepth 3 -type f -print | sort || true
+          echo "Sanity:"
+          cat _ci_out/sanity.txt || true
 
       - uses: actions/upload-artifact@v4
         if: always()

@@ -1,21 +1,13 @@
-Correctif band_suite
+Zip band_suite entrypoint v2
 
-Constat (depuis band_suite_artifacts.zip)
-- Aucun script band_suite n'existait dans le repo. Donc le workflow ne pouvait pas tourner.
+Pourquoi v2
+- Ton workflow echoue avec rc=2, sans message utile.
+- Ici, toute erreur imprime aussi la fin du log correspondant dans la console GitHub.
 
-Ce pack ajoute:
-- scripts/ci_band_suite.py : un entrypoint réel
-  - exécute les tests DD si présents
-  - lance un smoke DD qui produit dd_components.csv.gz
-  - optionnel: lance run_dd_batch.py si présent
-  - écrit des logs dans _ci_out/
+A copier dans ton repo
+- scripts/ci_band_suite.py
+- .github/workflows/band_suite_isolated.yml
 
-- .github/workflows/band_suite_isolated.yml : workflow qui appelle scripts/ci_band_suite.py et uploade _ci_out
-
-À faire
-1) Copie scripts/ci_band_suite.py dans ton repo (crée le dossier scripts/ s'il n'existe pas)
-2) Remplace .github/workflows/band_suite_isolated.yml par la version fournie
-3) Commit et push
-
-Résultat
-- band-suite (isolated) devient vert et produit toujours un artefact _ci_out exploitable.
+Ensuite commit + push, relance band-suite (isolated).
+Si ca echoue encore, le log dans l'onglet Actions te montrera l'erreur exacte,
+et l'artefact contiendra _ci_out/*.log.
