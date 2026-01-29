@@ -1,16 +1,7 @@
-Fichiers prêts à committer
+Correctif immédiat
+- Le workflow échouait car il cherchait requirements.txt à la racine.
+- Ce pack installe depuis dd_coherence_tool/requirements.txt.
 
-1) .github/workflows/ci_optimized.yml
-   - smoke sur Python 3.11
-   - matrix sur 3.10 et 3.11 avec fail-fast
-   - concurrency avec cancel-in-progress sur branches hors main
-   - job metrics: calcule queue_seconds et runtime_seconds via GitHub API, écrit metrics.csv et upload artifact
-
-2) .github/workflows/band_suite_isolated.yml
-   - band_suite isolé, déclenchable à la demande et en nightly
-   - retry simple en bash (2 tentatives)
-   - artefacts uploadés
-
-Adaptations à faire
-- Remplacer tests/smoke par ton chemin réel si différent
-- Remplacer python scripts/ci_band_suite.py par ton vrai entrypoint si différent
+À adapter si besoin
+- band_suite entrypoint: python scripts/ci_band_suite.py doit exister dans ton repo.
+  Sinon remplace par ta commande réelle.

@@ -25,7 +25,8 @@ jobs:
       - name: Install deps
         run: |
           python -m pip install --upgrade pip
-          pip install -r requirements.txt
+          pip install -r dd_coherence_tool/requirements.txt
+          pip install pytest
 
       - name: Run band_suite with 1 retry
         run: |
@@ -51,7 +52,6 @@ jobs:
         if: always()
         run: |
           mkdir -p _ci_out
-          # Ajoute ici tes exports, logs, rapports si besoin.
 
       - uses: actions/upload-artifact@v4
         if: always()
