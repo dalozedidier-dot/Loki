@@ -1,0 +1,60 @@
+name: band-suite (isolated)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 2 * * *"
+
+concurrency:
+  group: band-suite-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  band_suite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run band_suite with 1 retry
+        run: |
+          set -e
+          attempt=1
+          max=2
+          until [ $attempt -gt $max ]
+          do
+            echo "band_suite attempt $attempt/$max"
+            python scripts/ci_band_suite.py && break
+            attempt=$((attempt+1))
+            if [ $attempt -le $max ]; then
+              echo "Retry in 10s"
+              sleep 10
+            fi
+          done
+          if [ $attempt -gt $max ]; then
+            echo "band_suite failed after $max attempts"
+            exit 1
+          fi
+
+      - name: Collect logs and artifacts
+        if: always()
+        run: |
+          mkdir -p _ci_out
+          # Ajoute ici tes exports, logs, rapports si besoin.
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: band_suite_artifacts
+          path: _ci_out

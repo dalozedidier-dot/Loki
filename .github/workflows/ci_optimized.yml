@@ -1,0 +1,122 @@
+name: CI Optimized
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
+jobs:
+  smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Smoke tests
+        run: |
+          python -m pytest -q tests/smoke
+
+  matrix-test:
+    needs: smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: true
+      matrix:
+        python-version: ["3.10", "3.11"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run tests
+        run: |
+          python -m pytest -q
+
+  metrics:
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Compute workflow timings and append metrics.csv
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python - <<'PY'
+          import json, os, datetime, urllib.request
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+          run_id = os.environ["GITHUB_RUN_ID"]
+          api = f"https://api.github.com/repos/{repo}/actions/runs/{run_id}"
+
+          req = urllib.request.Request(api, headers={
+              "Authorization": f"Bearer {os.environ.get('GH_TOKEN','')}",
+              "Accept": "application/vnd.github+json",
+              "User-Agent": "dd-coherence-ci-metrics"
+          })
+          with urllib.request.urlopen(req) as r:
+              data = json.loads(r.read().decode("utf-8"))
+
+          def parse_iso(s: str) -> datetime.datetime:
+              return datetime.datetime.fromisoformat(s.replace("Z", "+00:00"))
+
+          created_at = parse_iso(data["created_at"])
+          run_started_at = parse_iso(data["run_started_at"]) if data.get("run_started_at") else None
+          updated_at = parse_iso(data["updated_at"])
+
+          queue_s = int((run_started_at - created_at).total_seconds()) if run_started_at else ""
+          runtime_s = int((updated_at - run_started_at).total_seconds()) if run_started_at else ""
+
+          line = ",".join([
+              str(data.get("run_number", "")),
+              str(run_id),
+              str(data.get("event", "")),
+              str(data.get("head_branch", "")),
+              str(data.get("head_sha", ""))[:12],
+              str(data.get("conclusion", data.get("status",""))),
+              created_at.isoformat(),
+              run_started_at.isoformat() if run_started_at else "",
+              updated_at.isoformat(),
+              str(queue_s),
+              str(runtime_s),
+          ])
+
+          header = "run_number,run_id,event,branch,sha12,conclusion,created_at,run_started_at,updated_at,queue_seconds,runtime_seconds\n"
+          path = "metrics.csv"
+          exists = os.path.exists(path)
+          with open(path, "a", encoding="utf-8") as f:
+              if not exists:
+                  f.write(header)
+              f.write(line + "\n")
+
+          print("metrics.csv appended:", line)
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ci-metrics
+          path: metrics.csv
