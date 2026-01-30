@@ -1,0 +1,3 @@
+old_name,new_name,type,repo,export_date_utc,source,notes
+Code frequency.csv,code_frequency_export_A.csv,csv,Vision,,GitHub Insights,valeurs fortes
+Code frequency (1).csv,code_frequency_export_B.csv,csv,Vision,,GitHub Insights,valeurs faibles; a valider

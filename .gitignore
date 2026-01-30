@@ -1,9 +1,11 @@
+# Dossiers de travail à ne pas versionner
+.venv/
+.vscode/
 __pycache__/
 *.pyc
-.pytest_cache/
-.venv/
-venv/
-_ci_out/
-out_dd/
-*.egg-info/
-.DS_Store
+
+# Dossiers non liés au périmètre DD/CI
+externes/
+
+# Archives locales, à versionner seulement si tu le décides explicitement
+archives/

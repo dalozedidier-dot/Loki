@@ -1,13 +1,28 @@
-Zip band_suite entrypoint v2
+Structure de travail DD / CI (pack minimal)
 
-Pourquoi v2
-- Ton workflow echoue avec rc=2, sans message utile.
-- Ici, toute erreur imprime aussi la fin du log correspondant dans la console GitHub.
+Objectif
+- Ranger sans perdre d'information
+- Garder la traçabilité (qu'est-ce qui vient d'où)
+- Éviter toute suppression définitive tant que les incohérences ne sont pas levées
 
-A copier dans ton repo
-- scripts/ci_band_suite.py
-- .github/workflows/band_suite_isolated.yml
+Arborescence proposée
+- sboms/                     JSON SPDX
+- csvs/github_insights/       Exports GitHub "Commits", "Code frequency"
+- csvs/ci_metrics/            Exports CI (failure rate, runtime, queue_seconds, etc.)
+- images/                     Captures graphiques et pages exportées
+- archives/                   Doublons et versions à écarter mais à conserver
+- externes/                   Projets non liés (client-python, coingecko-*, tradingeconomics-*)
 
-Ensuite commit + push, relance band-suite (isolated).
-Si ca echoue encore, le log dans l'onglet Actions te montrera l'erreur exacte,
-et l'artefact contiendra _ci_out/*.log.
+Méthode recommandée
+1) Déplacer sans renommer dans un premier temps (juste classer par type)
+2) Remplir RENAMING_MAP.csv au fur et à mesure des renommages
+3) Pour chaque fichier renommé, noter l'origine dans INDEX.md (repo, date d'export, source UI ou outil)
+
+Point critique: incohérence Code frequency
+- Ne supprime pas "Code frequency (1).csv" tant que tu n'as pas validé lequel est correct.
+- Range les deux dans csvs/github_insights/ et renomme temporairement:
+  code_frequency_export_A.csv
+  code_frequency_export_B.csv
+- Renseigne NOTES_INCOHERENCES.md avec les différences observées.
+
+Dernière mise à jour: 2026-01-30
