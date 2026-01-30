@@ -2,6 +2,15 @@ name: band-suite (isolated)
 
 on:
   workflow_dispatch:
+    inputs:
+      debug:
+        description: "Active un logging plus verbeux dans le job"
+        required: false
+        default: "false"
+      python_version:
+        description: "Version Python"
+        required: false
+        default: "3.11"
   schedule:
     - cron: "17 2 * * *"
 
@@ -13,41 +22,125 @@ jobs:
   band_suite:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Prepare _ci_out early
+        shell: bash
         run: |
+          set -euo pipefail
           mkdir -p _ci_out
           echo "init" > _ci_out/_keep.txt
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: ${{ inputs.python_version }}
           cache: "pip"
 
-      - name: Install deps
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r dd_coherence_tool/requirements.txt
-          pip install pytest
-
-      - name: Run band suite entrypoint (with logs)
+      - name: Capture environment (always)
+        if: always()
+        shell: bash
         run: |
           set -euo pipefail
-          python scripts/ci_band_suite.py
+          {
+            echo "date_utc=$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+            echo "runner_os=$(uname -a)"
+            echo "pwd=$(pwd)"
+            echo "ref=$GITHUB_REF"
+            echo "sha=$GITHUB_SHA"
+            echo ""
+            echo "python:"
+            python -V || true
+            echo ""
+            echo "pip:"
+            pip -V || true
+            echo ""
+            echo "disk:"
+            df -h || true
+            echo ""
+            echo "mem:"
+            free -h || true
+          } > _ci_out/env.txt
 
-      - name: List _ci_out (debug)
-        if: always()
+      - name: Install deps (capture logs)
+        id: install
+        continue-on-error: true
+        shell: bash
         run: |
+          set -euo pipefail
+          if [ "${{ inputs.debug }}" = "true" ]; then set -x; fi
+          python -m pip install --upgrade pip 2>&1 | tee _ci_out/pip_upgrade.log
+          pip install -r dd_coherence_tool/requirements.txt 2>&1 | tee _ci_out/pip_requirements.log
+          pip install pytest 2>&1 | tee _ci_out/pip_pytest.log
+
+      - name: Freeze deps (always)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          pip freeze > _ci_out/pip_freeze.txt || true
+
+      - name: Run band suite entrypoint (capture logs)
+        id: band
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${{ inputs.debug }}" = "true" ]; then set -x; fi
+          python scripts/ci_band_suite.py 2>&1 | tee _ci_out/ci_band_suite.log
+
+      - name: Quick tail (always)
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo ""
+          echo "install outcome: ${{ steps.install.outcome }}"
+          echo "band outcome: ${{ steps.band.outcome }}"
+          echo ""
+          echo "---- tail env.txt ----"
+          tail -n 80 _ci_out/env.txt || true
+          echo ""
+          echo "---- tail pip_upgrade.log ----"
+          tail -n 80 _ci_out/pip_upgrade.log || true
+          echo ""
+          echo "---- tail pip_requirements.log ----"
+          tail -n 120 _ci_out/pip_requirements.log || true
+          echo ""
+          echo "---- tail ci_band_suite.log ----"
+          tail -n 160 _ci_out/ci_band_suite.log || true
+          echo ""
           echo "Files in _ci_out:"
           find _ci_out -maxdepth 3 -type f -print | sort || true
+          echo ""
           echo "Sanity:"
           cat _ci_out/sanity.txt || true
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifacts (always)
         if: always()
+        uses: actions/upload-artifact@v4
         with:
           name: band_suite_artifacts
           path: _ci_out
+          if-no-files-found: warn
+
+      - name: Fail job if install or band failed
+        if: always()
+        shell: bash
+        env:
+          INSTALL_OUTCOME: ${{ steps.install.outcome }}
+          BAND_OUTCOME: ${{ steps.band.outcome }}
+        run: |
+          set -euo pipefail
+          if [ "$INSTALL_OUTCOME" != "success" ]; then
+            echo "Install deps failed."
+            exit 1
+          fi
+          if [ "$BAND_OUTCOME" != "success" ]; then
+            echo "Band suite failed."
+            exit 1
+          fi
+          echo "band-suite (isolated) OK"
